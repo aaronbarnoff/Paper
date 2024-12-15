@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>arXiv Search</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f2f2f2; }
+        h1 { text-align: center; padding: 20px; background-color: #ffffff; margin: 0; border-bottom: 1px solid #e0e0e0; }
+        .search-container {
+            max-width: 700px;
+            margin: 20px auto;
+            padding: 10px;
+            background-color: white;
+            border-radius: 24px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+        }
+        #query {
+            width: 100%;
+            padding: 10px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 24px;
+            outline: none;
+        }
+        #query:focus {
+            border-color: #4285F4;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #357ae8;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 0 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .result-item {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-item h3 {
+            margin: 0;
+            color: #1a0dab;
+        }
+        .result-item p {
+            color: #4d5156;
+            font-size: 14px;
+        }
+        .result-item a {
+            text-decoration: none;
+            color: #1a0dab;
+            font-weight: bold;
+        }
+        .result-item a:hover {
+            text-decoration: underline;
+        }
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #4285F4;
+        }
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .pagination span {
+            padding: 10px 15px;
+            background-color: #f1f1f1;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 5px;
+        }
+        .pagination .active {
+            background-color: #4285F4;
+            color: white;
+        }
+        .pagination span:hover {
+            background-color: #ddd;
+        }
+        .pagination .ellipsis {
+            cursor: default;
+        }
+        .abstract-content {
+            margin-left: 20px;
+            padding: 10px;
+            border-left: 3px solid #4285F4;
+            background-color: #f9f9f9;
+            font-size: 14px;
+        }
+        .similar-item {
+            margin-bottom: 5px;
+            border-radius: 4px;
+            background-color: #ffffff;
+            box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 5px;
+            font-size: 12px; /* Smaller text size */
+        }
+        .similar-item a {
+            font-size: 12px; /* Smaller text size */
+        }
+        .similar-item p {
+            font-size: 11px; /* Even smaller text for descriptions */
+            color: #666; /* Lighter color for less emphasis */
+        }
+    </style>
+</head>
+<body>
+
+<h1>arXiv Search</h1>
+
+<div class="search-container">
+    <input type="text" id="query" placeholder="Type query here" />
+    <button onclick="performCombinedSearch()">Search</button>
+</div>
+
+<div class="results" id="results"></div>
+<div class="pagination" id="pagination"></div>
+
+<script>
+    let totalHits = 0;
+    let currentPage = 0;  // Initialize the current page
+    const pageSize = 10;  // Set a default page size
+
+    async function performCombinedSearch() {
+        const query = document.getElementById("query").value;  // Get the query from input field
+        const resultsDiv = document.getElementById("results");  // Div to show search results
+        const paginationDiv = document.getElementById("pagination");  // Div for pagination
+
+        resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+        paginationDiv.innerHTML = '';  // Reset pagination
+
+        try {
+            // Fetch results from searchController
+            const response = await fetch(`http://localhost:8080/combinedSearch?query=${encodeURIComponent(query)}&page=${currentPage}&pageSize=${pageSize}`);
+
+            if (!response.ok) {
+                console.error(`Error: HTTP status ${response.status}`); // Log errors
+                const errorText = await response.text();
+                console.error("Error response:", errorText);
+                throw new Error(`Failed to fetch results. Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("Search results data:", data);  // Double checking pdf link is correct
+
+            if (data.results.length > 0) {
+                resultsDiv.innerHTML = "";
+                data.results.forEach(result => {
+                    console.log("Result object:", result);  // Check that pdfurl is present
+
+                    const resultElement = document.createElement("div"); // My results layout
+                    resultElement.classList.add("result-item");
+                    resultElement.innerHTML = `
+                        <a href="${result.url}" target="_blank"><h3>${result.title}</h3></a>
+                        <p>${result.snippet}</p>
+                        <a href="javascript:void(0);" onclick="toggleAbstract('${result.docID}')" class="view-abstract">[View Abstract]</a>
+                        <div id="abstract-content-${result.docID}" class="abstract-content" style="display: none;">
+                            <p>${result.absSum}</p>
+                        </div>
+                        <a href="${result.pdfUrl}" target="_blank">[View PDF]</a>
+                        <a href="javascript:void(0);" onclick="viewSimilar('${result.docID}')" class="view-similar">[View Similar]</a>
+                        <div id="similar-results-${result.docID}" class="similar-results"></div>
+                    `;
+                    resultsDiv.appendChild(resultElement);
+                });
+
+                // Pagination
+                const totalPages = Math.ceil(data.totalHits / pageSize);
+                paginationDiv.innerHTML = '';
+
+                const pageNumbers = [];
+                const maxVisiblePages = 10; // Show up to 10 pages
+
+
+                if (totalPages <= maxVisiblePages) { // Pagination range
+                    for (let i = 0; i < totalPages; i++) {
+                        pageNumbers.push(i);
+                    }
+                } else { // Some of this stopped working correctly once I added vector searching
+                         // I think it is because the vector search doesn't return as many results, but that's ok
+                    if (currentPage < 5) { // Show first pages, current page, and last pages
+                        pageNumbers.push(0, 1, 2, 3, 4, 5, '...', totalPages - 1);
+                    } else if (currentPage > totalPages - 6) {
+                        pageNumbers.push(0, '...', totalPages - 5, totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1);
+                    } else {
+                        pageNumbers.push(0, '...', currentPage - 3, currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2, currentPage + 3, '...', totalPages - 1);
+                    }
+                }
+
+                // Add page numbers
+                pageNumbers.forEach(pageNumber => {
+                    const pageSpan = document.createElement("span");
+                    if (pageNumber === '...') {
+                        pageSpan.classList.add("ellipsis");
+                        pageSpan.innerText = '...';
+                        paginationDiv.appendChild(pageSpan);
+                    } else {
+                        pageSpan.innerText = (pageNumber + 1);  // Display page numbers starting from 1
+                        if (pageNumber === currentPage) {
+                            pageSpan.classList.add('active');
+                        }
+                        pageSpan.onclick = () => changePageTo(pageNumber);
+                        paginationDiv.appendChild(pageSpan);
+                    }
+                });
+
+                const prevButton = document.createElement("span");
+                prevButton.innerText = "Previous";
+                prevButton.classList.add("pagination-button");
+                prevButton.disabled = currentPage === 0;
+                prevButton.onclick = () => changePage(-1);
+                paginationDiv.appendChild(prevButton);
+
+                const nextButton = document.createElement("span");
+                nextButton.innerText = "Next";
+                nextButton.classList.add("pagination-button");
+                nextButton.disabled = currentPage === totalPages - 1;
+                nextButton.onclick = () => changePage(1);
+                paginationDiv.appendChild(nextButton);
+
+            } else {
+                resultsDiv.innerHTML = '<div class="no-results">No results found.</div>';
+            }
+        } catch (error) {
+            console.error("Error fetching combined search results:", error);
+            resultsDiv.innerHTML = `<div class="no-results">Error fetching results: ${error.message}</div>`;
+        }
+    }
+
+    async function viewSimilar(docID) {
+        console.log("Finding documents similar to docID:", docID);
+
+        const similarResultsDiv = document.getElementById(`similar-results-${docID}`);
+        similarResultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+
+        try {
+            const response = await fetch(`http://localhost:8080/similarDocuments?docID=${encodeURIComponent(docID)}&topK=5`);
+
+            if (!response.ok) {
+                throw new Error(`Failed to get similar docs: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.results.length > 0) {
+                similarResultsDiv.innerHTML = "";
+                data.results.forEach((result) => {
+                    const resultElement = document.createElement("div");
+                    resultElement.classList.add("similar-item");
+                    resultElement.innerHTML = `
+                        <a href="${result.url}" target="_blank"><h4>${result.title}</h4></a>
+                        <a href="javascript:void(0);" onclick="toggleAbstract('${result.docID}')" class="view-abstract">[View Abstract]</a>
+                        <div id="abstract-content-${result.docID}" class="abstract-content" style="display: none;">
+                            <p>${result.absSum}</p>
+                        </div>
+                        <a href="${result.pdfUrl}" target="_blank">[View PDF]</a>
+                    `;
+                    similarResultsDiv.appendChild(resultElement);
+                });
+            } else {
+                similarResultsDiv.innerHTML = '<div class="no-results">No similar documents found.</div>';
+            }
+        } catch (error) {
+            console.error("Error fetching similar documents:", error);
+            similarResultsDiv.innerHTML = `<div class="no-results">Error fetching similar documents: ${error.message}</div>`;
+        }
+    }
+
+
+    function toggleAbstract(docID) { // Hide/show the abstract
+        const abstractContentDiv = document.getElementById(`abstract-content-${docID}`);
+
+        if (abstractContentDiv.style.display === 'block') {
+            abstractContentDiv.style.display = 'none';
+        } else {
+            abstractContentDiv.style.display = 'block';
+        }
+    }
+
+    function changePageTo(pageNumber) {
+        if (pageNumber >= 0) {
+            currentPage = pageNumber;
+            performCombinedSearch();  // Run combined search with the new page
+        }
+    }
+
+    function changePage(offset) {
+        const newPage = currentPage + offset;
+        if (newPage >= 0) {
+            currentPage = newPage;
+            performCombinedSearch();  // Run combined search with the new page
+        }
+    }
+</script>
+
+</body>
+</html>
