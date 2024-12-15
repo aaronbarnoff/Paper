@@ -10,7 +10,7 @@ from sklearn.preprocessing import normalize
 from sklearn.cluster import KMeans
 
 # Define paths
-embeddings_dir = r"E:\IR Project\Embeddings\TSNE"  # Replace with the directory where embeddings are saved
+embeddings_dir = r"E:\IR Project\Embeddings\TSNE" 
 output_dir = "tsne_visualizations"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -36,9 +36,8 @@ if len(emb) > 0 and isinstance(emb[0], (list, np.ndarray)):
 embeddings = np.array(emb)
 embeddings = normalize(embeddings, axis=1)
 
-# Perform clustering to assign colors
-# There are ~40 CS subcategories, so I chose 40
-num_clusters = 40  # You can adjust the number of clusters based on your data
+# Perform clustering to assign colors (k-means)
+num_clusters = 40  # There are ~40 CS subcategories, so I chose 40
 kmeans = KMeans(n_clusters=num_clusters, random_state=123)
 cluster_labels = kmeans.fit_predict(embeddings)
 
