@@ -37,6 +37,7 @@ embeddings = np.array(emb)
 embeddings = normalize(embeddings, axis=1)
 
 # Perform clustering to assign colors
+# There are ~40 CS subcategories, so I chose 40
 num_clusters = 40  # You can adjust the number of clusters based on your data
 kmeans = KMeans(n_clusters=num_clusters, random_state=123)
 cluster_labels = kmeans.fit_predict(embeddings)
